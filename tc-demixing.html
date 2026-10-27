@@ -173,7 +173,7 @@
       <aside class="sidebar">
         <div>
           <h1 class="text-lg font-bold tracking-tight">🌪️ Tornado Cash</h1>
-          <p class="text-xs text-muted-foreground mt-0.5">Demixing Tool <span style="opacity:0.4;">v3.3</span></p>
+          <p class="text-xs text-muted-foreground mt-0.5">Demixing Tool <span style="opacity:0.4;">v3.4</span></p>
         </div>
 
         <!-- Input section -->
@@ -478,19 +478,23 @@
           </div><!-- end main-content -->
 
           <div id="section-guide" style="display:none;" class="space-y-6">
+            <!-- How TC Works -->
             <div class="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 flex flex-col gap-4 py-4">
               <div class="px-4"><h2 class="text-base font-medium">How Tornado Cash Works</h2></div>
               <div class="px-4 space-y-3 text-sm">
+                <p>Tornado Cash is a mixer protocol on Ethereum that breaks the on-chain link between a source and destination address using zero-knowledge proofs.</p>
                 <div class="rounded-lg bg-muted p-4 font-mono text-xs">Deposit Address ──→ [ TC Pool ] ──→ Fresh Withdrawal Address<br/>&nbsp;&nbsp;&nbsp;&nbsp;(known)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(break)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(unknown link)</div>
                 <ol class="list-decimal list-inside space-y-1">
                   <li><strong>Deposit</strong> — Fixed ETH amount sent to a pool contract, cryptographic note received off-chain.</li>
-                  <li><strong>Wait</strong> — ETH sits in the pool. Longer wait = larger anonymity set.</li>
-                  <li><strong>Withdraw</strong> — Note presented via ZK proof. ETH goes to a fresh address.</li>
+                  <li><strong>Wait</strong> — ETH sits in the pool alongside other deposits. Longer wait = larger anonymity set.</li>
+                  <li><strong>Withdraw</strong> — Note presented via ZK proof. ETH goes to a fresh address with no on-chain link.</li>
                 </ol>
               </div>
             </div>
+            <!-- Pool Denominations -->
             <div class="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 flex flex-col gap-4 py-4">
               <div class="px-4"><h2 class="text-base font-medium">ETH Pool Denominations</h2></div>
+              <div class="px-4 text-sm"><p class="text-muted-foreground mb-2">TC only accepts fixed amounts. This constraint makes analysis possible. Withdrawals may be slightly less due to relayer fees.</p></div>
               <div class="px-4"><table class="w-full text-sm"><thead class="border-b border-border"><tr>
                 <th class="px-4 py-3 text-left font-medium text-muted-foreground">Pool Contract</th>
                 <th class="px-4 py-3 text-left font-medium text-muted-foreground">Amount</th>
@@ -502,28 +506,103 @@
                 <tr><td class="px-4 py-3 font-mono text-xs">0xA160cdAB225685dA1d56aa342Ad8841c3b53f291</td><td class="px-4 py-3">100 ETH</td><td class="px-4 py-3 text-center">🔴</td></tr>
               </tbody></table></div>
             </div>
+            <!-- Deposit Vector -->
+            <div class="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 flex flex-col gap-4 py-4">
+              <div class="px-4"><h2 class="text-base font-medium">Deposit Vector</h2></div>
+              <div class="px-4 text-sm">
+                <p>A deposit vector describes which pools an actor used and how many times:</p>
+                <div class="rounded-lg bg-muted p-4 font-mono text-xs mt-2 leading-relaxed">Vector: (0, 2, 3, 0)<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;│<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;└── 🔴 100 ETH: 0<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;└───── 🟢 10 ETH:&nbsp;&nbsp;3 = 30 ETH<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;└──────── 🟠 1 ETH:&nbsp;&nbsp;&nbsp;2 = 2 ETH<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─────────── 🟣 0.1 ETH: 0<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Total = 32 ETH</div>
+              </div>
+            </div>
+            <!-- Inside vs Outside -->
             <div class="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 flex flex-col gap-4 py-4">
               <div class="px-4"><h2 class="text-base font-medium">Inside vs. Outside Window</h2></div>
               <div class="px-4 text-sm space-y-2">
-                <p><strong class="text-success">🟢 Inside Window</strong> — Withdrawals during your investigation period. Could be your actor cashing out.</p>
-                <p><strong class="text-destructive">🔴 Outside Window</strong> — All other lifetime TC activity. Context on whether this is a habitual TC user.</p>
-                <p class="text-muted-foreground">Focus on candidates whose <strong>inside</strong> pattern matches your deposit vector.</p>
+                <p><strong style="color:#4ade80;">🟢 Withdrawal Window (Inside)</strong> — TC withdrawal activity during your investigation period. Could be your actor cashing out.</p>
+                <p><strong style="color:#f87171;">🔴 Total Activity (Outside)</strong> — All other lifetime TC withdrawal activity. Context on whether this is a habitual TC user or someone who only appeared during your window.</p>
+                <p class="text-muted-foreground">An address with heavy outside activity but minimal inside activity matching your vector is likely just a regular TC user. Focus on candidates whose inside pattern aligns with your deposit vector.</p>
               </div>
             </div>
+            <!-- Step by Step -->
+            <div class="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 flex flex-col gap-4 py-4">
+              <div class="px-4"><h2 class="text-base font-medium">Step-by-Step Workflow</h2></div>
+              <div class="px-4 text-sm space-y-3">
+                <div><strong>1. Load Deposits</strong> — Paste addresses or tx hashes, or upload CSV. The tool finds all TC deposits and builds the vector. If the address also received TC withdrawals, a ⚠️ TC WITHDRAWAL badge flags the opsec failure.</div>
+                <div><strong>2. Select & Apply</strong> — Check the deposits relevant to your case. Is there a concentrated burst? A tighter window = better results. Apply Selection updates the sidebar vector and auto-populates the withdrawal window.</div>
+                <div><strong>3. Set Window</strong> — From Date & Time auto-set from your latest deposit. Extend with Add Days (1-3 for quick actors, 7-14 default, 30-90 for patient actors).</div>
+                <div><strong>4. Analyse Candidates</strong> — Click Explore. Use the pool filter table to include/exclude pools based on your vector. Each candidate shows inside/outside pool counts, status badges, sending exposure, observations, days active, and balance.</div>
+                <div><strong>5. Drill Down</strong> — ⛽ Gas Funder (shared gas sources), 🔀 Forward MCA (shared destinations), 📊 Reactor Graph (visual map with deposits, TC, candidates, vectors, and sends-to consolidation).</div>
+              </div>
+            </div>
+            <!-- Status Badges -->
+            <div class="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 flex flex-col gap-4 py-4">
+              <div class="px-4"><h2 class="text-base font-medium">Status Badges</h2></div>
+              <div class="px-4"><table class="w-full text-sm"><thead class="border-b border-border"><tr>
+                <th class="px-4 py-3 text-left font-medium text-muted-foreground">Badge</th>
+                <th class="px-4 py-3 text-left font-medium text-muted-foreground">Meaning</th>
+              </tr></thead><tbody class="divide-y">
+                <tr><td class="px-4 py-3"><span style="background:rgba(239,68,68,0.2);color:#f87171;border-radius:4px;padding:2px 6px;font-size:0.7rem;font-weight:600;">⚠️ DEPOSIT ADDR</span></td><td class="px-4 py-3 text-muted-foreground">This address also appears in your deposit list — major opsec failure</td></tr>
+                <tr><td class="px-4 py-3"><span style="background:rgba(34,197,94,0.15);color:#4ade80;border-radius:4px;padding:2px 6px;font-size:0.7rem;font-weight:600;">🆕 TC-ONLY</span></td><td class="px-4 py-3 text-muted-foreground">1 day active, only received from TC — classic single-use withdrawal address</td></tr>
+                <tr><td class="px-4 py-3"><span style="background:rgba(59,130,246,0.15);color:#60a5fa;border-radius:4px;padding:2px 6px;font-size:0.7rem;font-weight:600;">NEW</span></td><td class="px-4 py-3 text-muted-foreground">1 day active but has other inbound sources besides TC</td></tr>
+                <tr><td class="px-4 py-3"><span style="background:rgba(148,163,184,0.1);color:#94a3b8;border-radius:4px;padding:2px 6px;font-size:0.7rem;">MIXED</span></td><td class="px-4 py-3 text-muted-foreground">Active 30+ days — pre-existing address, less likely purpose-built</td></tr>
+                <tr><td class="px-4 py-3"><span style="background:rgba(249,115,22,0.15);color:#fb923c;border-radius:4px;padding:2px 6px;font-size:0.7rem;">💰 HOLDING</span></td><td class="px-4 py-3 text-muted-foreground">Balance over $100 — funds have not been moved yet</td></tr>
+                <tr><td class="px-4 py-3"><span style="background:rgba(168,85,247,0.15);color:#c084fc;border-radius:4px;padding:2px 6px;font-size:0.7rem;">📡 obs</span></td><td class="px-4 py-3 text-muted-foreground">IP geolocation observations with top country codes</td></tr>
+                <tr><td class="px-4 py-3"><span style="background:rgba(239,68,68,0.15);color:#f87171;border-radius:4px;padding:2px 6px;font-size:0.7rem;">🧅 TOR</span> <span style="background:rgba(249,115,22,0.15);color:#fb923c;border-radius:4px;padding:2px 6px;font-size:0.7rem;">🔀 PROXY</span> <span style="background:rgba(59,130,246,0.15);color:#60a5fa;border-radius:4px;padding:2px 6px;font-size:0.7rem;">🛡️ VPN</span></td><td class="px-4 py-3 text-muted-foreground">Privacy tools detected in observations</td></tr>
+              </tbody></table></div>
+            </div>
+            <!-- Common Behaviours -->
+            <div class="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 flex flex-col gap-4 py-4">
+              <div class="px-4"><h2 class="text-base font-medium">Common Actor Behaviours</h2></div>
+              <div class="px-4"><table class="w-full text-sm"><thead class="border-b border-border"><tr>
+                <th class="px-4 py-3 text-left font-medium text-muted-foreground">Behaviour</th>
+                <th class="px-4 py-3 text-left font-medium text-muted-foreground">What to Look For</th>
+              </tr></thead><tbody class="divide-y">
+                <tr><td class="px-4 py-3 font-medium">Quick in-and-out</td><td class="px-4 py-3 text-muted-foreground">Deposits and withdrawals within hours. Small anonymity set.</td></tr>
+                <tr><td class="px-4 py-3 font-medium">Drip withdrawal</td><td class="px-4 py-3 text-muted-foreground">Withdraws to many addresses over days/weeks. Look for timing intervals and consolidation.</td></tr>
+                <tr><td class="px-4 py-3 font-medium">Same gas funder</td><td class="px-4 py-3 text-muted-foreground">Withdrawal addresses all funded by the same gas source.</td></tr>
+                <tr><td class="px-4 py-3 font-medium">Bridge exit</td><td class="px-4 py-3 text-muted-foreground">Withdraws then immediately bridges to another chain.</td></tr>
+                <tr><td class="px-4 py-3 font-medium">Opsec failure</td><td class="px-4 py-3 text-muted-foreground">Withdraws back to the deposit address (⚠️ TC WITHDRAWAL badge).</td></tr>
+                <tr><td class="px-4 py-3 font-medium">DEX consolidation</td><td class="px-4 py-3 text-muted-foreground">Multiple withdrawals routed through the same DEX (visible in Sends To + Reactor graph).</td></tr>
+              </tbody></table></div>
+            </div>
+            <!-- Reactor Graph -->
+            <div class="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 flex flex-col gap-4 py-4">
+              <div class="px-4"><h2 class="text-base font-medium">Reactor Graph Layout</h2></div>
+              <div class="px-4 text-sm">
+                <div class="rounded-lg bg-muted p-4 font-mono text-xs leading-relaxed">[Deposit addr]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Tornado.cash]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Withdrawal 1] ──→ [LI.FI]<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(0,0,0,1)<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Withdrawal 2] ──→ [LI.FI]<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Withdrawal 3] ──→ [Cow Swap]<br/><br/>&nbsp;&nbsp;&nbsp;&nbsp;LEFT&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;CENTER&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;RIGHT&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;FAR RIGHT</div>
+                <ul class="list-disc list-inside mt-2 space-y-1 text-muted-foreground">
+                  <li>Deposit addresses on the left</li>
+                  <li>Real Tornado.cash cluster in the center</li>
+                  <li>Withdrawal candidates on the right with vector annotations</li>
+                  <li>Sends-to destinations as real cluster nodes on the far right</li>
+                  <li>Multiple candidates to the same destination share one node — consolidation visible</li>
+                </ul>
+              </div>
+            </div>
+            <!-- Window Guidance -->
             <div class="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 flex flex-col gap-4 py-4">
               <div class="px-4"><h2 class="text-base font-medium">Window Size Guidance</h2></div>
               <div class="px-4"><table class="w-full text-sm"><thead class="border-b border-border"><tr>
                 <th class="px-4 py-3 text-left font-medium text-muted-foreground">Window</th>
                 <th class="px-4 py-3 text-left font-medium text-muted-foreground">Use Case</th>
               </tr></thead><tbody class="divide-y">
-                <tr><td class="px-4 py-3 font-medium">1–3 days</td><td class="px-4 py-3 text-muted-foreground">Impatient actors. Smaller anonymity set.</td></tr>
-                <tr><td class="px-4 py-3 font-medium">7–14 days</td><td class="px-4 py-3 text-muted-foreground">Good default. Balances coverage with candidate count.</td></tr>
-                <tr><td class="px-4 py-3 font-medium">30–90 days</td><td class="px-4 py-3 text-muted-foreground">Patient actors. Look for consolidation or run MCA.</td></tr>
+                <tr><td class="px-4 py-3 font-medium">1-3 days</td><td class="px-4 py-3 text-muted-foreground">Catches impatient actors. Smaller anonymity set, easier to analyse.</td></tr>
+                <tr><td class="px-4 py-3 font-medium">7-14 days</td><td class="px-4 py-3 text-muted-foreground">Good default. Balances coverage with manageable candidate count.</td></tr>
+                <tr><td class="px-4 py-3 font-medium">30-90 days</td><td class="px-4 py-3 text-muted-foreground">Patient actors. Larger pool — use gas funder or MCA to narrow.</td></tr>
               </tbody></table></div>
             </div>
+            <!-- Limitations -->
             <div class="alert" role="alert">
               <div class="alert-title">⚠️ Limitations</div>
-              <div class="alert-description">This is probabilistic, not deterministic. Always corroborate with other evidence. Sophisticated actors may use delays, intermediaries, bridges, or multiple rounds of TC.</div>
+              <div class="alert-description">
+                <ul class="list-disc list-inside space-y-1 mt-1">
+                  <li><strong>Probabilistic, not deterministic.</strong> TC analysis narrows candidates — it does not prove a link. Always corroborate.</li>
+                  <li><strong>Anonymity set size matters.</strong> Thousands of deposits in your window means vector matching alone may not suffice.</li>
+                  <li><strong>Sophisticated actors adapt.</strong> Delays, intermediaries, bridges, multiple TC rounds.</li>
+                  <li><strong>Ethereum ETH only.</strong> Covers the four ETH pools. ERC-20 pools (DAI, USDC, USDT) are not covered.</li>
+                  <li><strong>Relayer fees.</strong> Withdrawal amounts may be slightly below denomination. Tool uses range matching.</li>
+                </ul>
+              </div>
             </div>
           </div>
 
