@@ -2,6 +2,10 @@
 
 Ethereum Tornado Cash deposit analysis, withdrawal candidate identification with vector matching, inside/outside window analysis, geolocation observations, sending exposure, and Reactor graph generation.
 
+## Investigator Guide
+
+See `tc-guide.md` for the full reference — how TC works, deposit vectors, inside/outside windows, status badges, common actor behaviours, and limitations.
+
 ## How to Launch
 
 Fetch the interactive page from this repo and display it:
