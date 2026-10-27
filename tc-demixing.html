@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>🌪️ TC Demixing Tool</title>
+    <link rel="stylesheet" href="/assets/pages-theme.css" />
+    <style>
+      /* ── Force dark mode ── */
+      :root {
+        color-scheme: dark;
+        --background: #09090b;
+        --foreground: #fafafa;
+        --card: #111113;
+        --card-foreground: #fafafa;
+        --muted: #1c1c1f;
+        --muted-foreground: #a1a1aa;
+        --border: #27272a;
+        --input: #27272a;
+        --primary: #3b82f6;
+        --primary-foreground: #ffffff;
+        --secondary: #1c1c1f;
+        --secondary-foreground: #fafafa;
+        --destructive: #ef4444;
+        --success: #22c55e;
+        --warning: #f59e0b;
+        --info: #3b82f6;
+      }
+      html { background: var(--background); }
+      .section-filter-panel { flex: 1; max-width: 50%; }
+
+      /* Tooltips */
+      .tip-wrap { position: relative; display: inline; }
+      .tip-icon {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 1rem; height: 1rem; border-radius: 50%;
+        background: var(--muted); color: var(--muted-foreground);
+        font-size: 0.6rem; font-weight: 700; cursor: help;
+        margin-left: 0.3rem; vertical-align: middle;
+        transition: all 0.15s;
+      }
+      .tip-icon:hover { background: var(--primary); color: var(--primary-foreground); }
+      .tip-content {
+        display: none; position: absolute; z-index: 100;
+        bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+        width: 280px; padding: 0.75rem; border-radius: 0.5rem;
+        background: #1c1c1f; color: #e4e4e7; border: 1px solid var(--border);
+        font-size: 0.75rem; line-height: 1.4; font-weight: 400;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        pointer-events: none;
+      }
+      .tip-content::after {
+        content: ""; position: absolute; top: 100%; left: 50%;
+        transform: translateX(-50%);
+        border: 6px solid transparent; border-top-color: #1c1c1f;
+      }
+      .tip-wrap:hover .tip-content { display: block; }
+
+      /* Sortable headers */
+      .sort-header { cursor: pointer !important; transition: background 0.15s; }
+      .sort-header:hover { filter: brightness(1.3); }
+
+      /* ── Layout ── */
+      .app-layout { display: flex; min-height: 100vh; }
+      .sidebar {
+        width: 300px; min-width: 300px; max-width: 300px;
+        background: var(--card); border-right: 1px solid var(--border);
+        padding: 1.5rem 1rem; display: flex; flex-direction: column; gap: 1rem;
+        position: sticky; top: 0; height: 100vh; overflow-y: auto;
+        box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+      }
+      .main { flex: 1; padding: 2rem 2rem; overflow-y: auto; }
+      .main > .content { max-width: none; }
+
+      /* ── Sidebar ── */
+      .sb-section { border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; }
+      .sb-section:last-child { border-bottom: none; }
+      .sb-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted-foreground); margin-bottom: 0.35rem; }
+      .sb-success { background: rgba(34,197,94,0.12); color: #4ade80; border-radius: 0.5rem; padding: 0.4rem 0.6rem; font-size: 0.78rem; margin-top: 0.25rem; border: 1px solid rgba(34,197,94,0.2); }
+      .sb-info { background: rgba(59,130,246,0.12); color: #60a5fa; border-radius: 0.5rem; padding: 0.4rem 0.6rem; font-size: 0.78rem; margin-top: 0.25rem; border: 1px solid rgba(59,130,246,0.2); }
+      .sb-muted { font-size: 0.72rem; color: var(--muted-foreground); margin-top: 0.2rem; }
+
+      /* ── Vector & Filter Tables ── */
+      .vector-table, .filter-table { border-collapse: collapse; text-align: center; width: 100%; border-radius: 0.5rem; overflow: hidden; }
+      .vector-table th, .vector-table td, .filter-table th, .filter-table td { padding: 0.4rem 0.6rem; font-weight: 600; }
+      .vector-table th, .filter-table th { font-size: 0.65rem; border-bottom: 2px solid; letter-spacing: 0.02em; }
+      .vector-table td { font-size: 1.15rem; }
+      .filter-table td { font-size: 1rem; cursor: pointer; user-select: none; transition: all 0.15s; position: relative; }
+      .filter-table th { cursor: pointer; user-select: none; }
+
+      .bg-purple { background: rgba(168,85,247,0.18); color: #c084fc; }
+      .bg-orange { background: rgba(249,115,22,0.18); color: #fb923c; }
+      .bg-green  { background: rgba(34,197,94,0.18); color: #4ade80; }
+      .bg-red    { background: rgba(239,68,68,0.18); color: #f87171; }
+      .bg-total  { background: rgba(148,163,184,0.1); color: var(--muted-foreground); }
+      th.bg-purple { border-color: #a855f7; }
+      th.bg-orange { border-color: #f97316; }
+      th.bg-green  { border-color: #22c55e; }
+      th.bg-red    { border-color: #ef4444; }
+      th.bg-total  { border-color: var(--muted-foreground); }
+
+      .filter-table .excluded { opacity: 0.15; }
+      .filter-table td.excluded::after {
+        content: "✕"; position: absolute; inset: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.3rem; opacity: 0.8; text-decoration: none; color: inherit;
+      }
+
+      /* ── Cards with glow effect ── */
+      .rounded-xl { transition: box-shadow 0.2s; }
+      .rounded-xl:hover { box-shadow: 0 0 20px rgba(0,0,0,0.1); }
+
+      /* ── Spinner ── */
+      .spinner { display: inline-block; width: 0.9rem; height: 0.9rem; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      #sandbox-msg { display: none; }
+
+      /* ── Steps ── */
+      .step-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
+      .step-num { display: inline-flex; align-items: center; justify-content: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; font-size: 0.75rem; font-weight: 700; transition: all 0.3s; }
+      .step-active { background: var(--primary); color: var(--primary-foreground); box-shadow: 0 0 8px rgba(var(--primary), 0.3); }
+      .step-done { background: rgba(34,197,94,0.25); color: #4ade80; }
+      .step-pending { background: var(--muted); color: var(--muted-foreground); }
+
+      /* ── Buttons & Status ── */
+      .btn-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+      .inline-status { font-size: 0.8rem; color: var(--muted-foreground); }
+      .inline-status.error { color: var(--destructive); }
+
+      /* ── Resizable table columns ── */
+      .resizable-table { width: 100%; border-collapse: collapse; table-layout: auto; }
+      .resizable-table th { position: relative; user-select: none; white-space: nowrap; }
+      .resizable-table td { white-space: nowrap; }
+      .resizable-table tbody tr { transition: background 0.1s; }
+      .col-resize-handle {
+        position: absolute; right: 0; top: 0; bottom: 0; width: 4px;
+        cursor: col-resize; background: transparent;
+      }
+      .col-resize-handle:hover, .col-resize-handle.active { background: var(--primary); opacity: 0.5; }
+
+      /* ── Checkboxes ── */
+      input[type="checkbox"] {
+        appearance: none; -webkit-appearance: none;
+        width: 1rem; height: 1rem; border: 2px solid var(--border);
+        border-radius: 0.25rem; cursor: pointer; position: relative;
+        transition: all 0.15s; background: transparent;
+      }
+      input[type="checkbox"]:checked {
+        background: var(--primary); border-color: var(--primary);
+      }
+      input[type="checkbox"]:checked::after {
+        content: "✓"; position: absolute; inset: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 0.65rem; color: var(--primary-foreground); font-weight: 700;
+      }
+      input[type="checkbox"]:hover { border-color: var(--primary); }
+
+      /* ── Scrollbar styling ── */
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+
+      /* ── Textarea ── */
+      textarea { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; }
+    </style>
+  </head>
+  <body class="bg-background text-foreground">
+    <div class="app-layout">
+
+      <!-- ==================== SIDEBAR ==================== -->
+      <aside class="sidebar">
+        <div>
+          <h1 class="text-lg font-bold tracking-tight">🌪️ Tornado Cash</h1>
+          <p class="text-xs text-muted-foreground mt-0.5">Demixing Tool <span style="opacity:0.4;">v3.3</span></p>
+        </div>
+
+        <!-- Input section -->
+        <div class="sb-section">
+          <div class="sb-label">Input</div>
+          <div class="flex gap-1 mb-1">
+            <button id="mode-addresses" class="inline-flex items-center justify-center rounded-lg h-6 px-2 text-xs font-medium bg-primary text-primary-foreground transition-all" onclick="setInputMode('addresses')">Addresses</button>
+            <button id="mode-transactions" class="inline-flex items-center justify-center rounded-lg h-6 px-2 text-xs font-medium border border-border bg-background text-foreground hover:bg-muted transition-all" onclick="setInputMode('transactions')">Transactions</button>
+          </div>
+          <textarea id="addr-input" placeholder="Paste addresses (comma or newline separated)" rows="3" class="w-full rounded-lg border border-input bg-transparent px-2 py-1.5 text-xs text-foreground outline-none focus:ring-2" style="resize:vertical;font-family:'SF Mono','Fira Code',monospace;">0xff8ef7bc455a57e5893232203052ce0232b39fa2</textarea>
+          <textarea id="tx-input" placeholder="Paste transaction hashes (comma or newline separated)" rows="3" class="w-full rounded-lg border border-input bg-transparent px-2 py-1.5 text-xs text-foreground outline-none focus:ring-2" style="resize:vertical;display:none;font-family:'SF Mono','Fira Code',monospace;"></textarea>
+          <div class="sb-muted">Or upload a CSV with an <code>addresses</code> or <code>transactions</code> column</div>
+          <input type="file" id="csv-upload" accept=".csv" class="mt-1" style="font-size:0.7rem; width:100%;" />
+          <div class="btn-row mt-2">
+            <button id="btn-deposits" class="inline-flex items-center justify-center rounded-lg h-7 px-2.5 text-xs font-medium bg-primary text-primary-foreground transition-all disabled:opacity-50 flex-1">
+              Load Deposits
+            </button>
+            <span id="status-deposits" class="inline-status"></span>
+          </div>
+        </div>
+
+        <!-- Deposit Vector -->
+        <div class="sb-section" id="sb-loaded" style="display:none;">
+          <div class="sb-label">Deposit Vector</div>
+          <table class="vector-table">
+            <thead><tr>
+              <th class="bg-purple">🟣.1</th>
+              <th class="bg-orange">🟠 1</th>
+              <th class="bg-green">🟢 10</th>
+              <th class="bg-red">🔴 100</th>
+              <th class="bg-total">Σ</th>
+            </tr></thead>
+            <tbody><tr>
+              <td class="bg-purple" id="lv-01">0</td>
+              <td class="bg-orange" id="lv-1">0</td>
+              <td class="bg-green" id="lv-10">0</td>
+              <td class="bg-red" id="lv-100">0</td>
+              <td class="bg-total" id="lv-total">0</td>
+            </tr></tbody>
+          </table>
+          <div class="sb-muted" id="sb-loaded-count"></div>
+        </div>
+
+        <!-- Selected Deposits -->
+        <div class="sb-section" id="sb-selected" style="display:none;">
+          <div class="sb-label">Selected Deposits</div>
+          <div class="sb-success" id="sb-sel-count"></div>
+          <div class="sb-success" id="sb-sel-dates"></div>
+          <table class="vector-table mt-2">
+            <thead><tr>
+              <th class="bg-purple">🟣.1</th>
+              <th class="bg-orange">🟠 1</th>
+              <th class="bg-green">🟢 10</th>
+              <th class="bg-red">🔴 100</th>
+              <th class="bg-total">Σ</th>
+            </tr></thead>
+            <tbody><tr>
+              <td class="bg-purple" id="sv-01">0</td>
+              <td class="bg-orange" id="sv-1">0</td>
+              <td class="bg-green" id="sv-10">0</td>
+              <td class="bg-red" id="sv-100">0</td>
+              <td class="bg-total" id="sv-total">0</td>
+            </tr></tbody>
+          </table>
+        </div>
+
+        <!-- Window -->
+        <div class="sb-section" id="sb-window" style="display:none;">
+          <div class="sb-label">Analysis Window</div>
+          <div class="sb-info" id="sb-window-info"></div>
+          <div class="sb-muted" id="sb-window-candidates"></div>
+        </div>
+
+        <!-- Selected Withdrawals -->
+        <div class="sb-section" id="sb-sel-withdrawals" style="display:none;">
+          <div class="sb-label">Selected Withdrawals</div>
+          <div class="sb-success" id="sb-wd-count">0 selected</div>
+          <table class="vector-table mt-2">
+            <thead><tr>
+              <th class="bg-purple">🟣.1</th>
+              <th class="bg-orange">🟠 1</th>
+              <th class="bg-green">🟢 10</th>
+              <th class="bg-red">🔴 100</th>
+              <th class="bg-total">Σ</th>
+            </tr></thead>
+            <tbody><tr>
+              <td class="bg-purple" id="wv-01">0</td>
+              <td class="bg-orange" id="wv-1">0</td>
+              <td class="bg-green" id="wv-10">0</td>
+              <td class="bg-red" id="wv-100">0</td>
+              <td class="bg-total" id="wv-total">0</td>
+            </tr></tbody>
+          </table>
+        </div>
+
+        <!-- Drill Down Results -->
+        <div class="sb-section" id="sb-drill" style="display:none;">
+          <div class="sb-label">Drill Down</div>
+          <div class="sb-success" id="sb-drill-info"></div>
+        </div>
+
+        <!-- Guide link -->
+        <div style="margin-top:auto; padding-top:0.75rem; border-top:1px solid var(--border);">
+          <button id="btn-show-guide" class="inline-flex items-center justify-center rounded-lg h-7 px-2.5 text-xs font-medium border border-border bg-background text-foreground hover:bg-muted transition-all w-full">
+            📖 Investigator Guide
+          </button>
+        </div>
+      </aside>
+
+      <!-- ==================== MAIN AREA ==================== -->
+      <div class="main">
+        <div class="content space-y-6">
+
+          <div id="main-content" class="space-y-6">
+
+          <div id="sandbox-msg" class="rounded-xl bg-info/10 text-info ring-1 ring-foreground/10 p-4 space-y-1">
+            <h3 class="text-sm font-semibold">Can't run workflows from preview</h3>
+            <p class="text-sm opacity-90">Open this page in a new tab to use interactive features.</p>
+          </div>
+
+          <!-- OPSEC FAILURE ALERT -->
+          <div id="opsec-alert" style="display:none;"></div>
+
+          <!-- STEP 1: DEPOSITS TABLE -->
+          <div id="section-deposits" style="display:none;">
+            <div class="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 flex flex-col gap-4 py-4">
+              <div class="px-4">
+                <div class="step-header">
+                  <span class="step-num step-active" id="step1-badge">1</span>
+                  <h2 class="text-base font-medium">Deposit List</h2>
+                </div>
+                <p class="text-muted-foreground text-sm">Select deposits to build your investigation vector, then apply selection <span class="tip-wrap"><span class="tip-icon">?</span><span class="tip-content">Is there a concentrated time frame or are the deposits spread over weeks/months? Selecting a tighter window of deposits increases the chance of finding high-probability withdrawal candidates. Look for clusters of deposits — actors often deposit in bursts.</span></span></p>
+              </div>
+              <div class="px-4 overflow-x-auto" id="deposits-table-wrap"></div>
+              <div class="px-4 btn-row">
+                <button id="btn-apply-selection" class="inline-flex items-center justify-center rounded-lg h-8 gap-1.5 px-2.5 text-sm font-medium bg-primary text-primary-foreground transition-all disabled:opacity-50">
+                  Apply Selection
+                </button>
+                <span id="status-selection" class="inline-status"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 2: WITHDRAWAL WINDOW -->
+          <!-- STEP 2: WITHDRAWAL WINDOW + FILTER (side by side) -->
+          <div id="section-window" style="display:none;">
+            <div class="flex gap-4" style="align-items:flex-start;">
+              <!-- Left: Withdrawal Window (half width) -->
+              <div class="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 flex flex-col gap-4 py-4" style="flex:1;max-width:50%;">
+                <div class="px-4">
+                  <div class="step-header">
+                    <span class="step-num step-pending" id="step2-badge">2</span>
+                    <h2 class="text-base font-medium">Withdrawal Window</h2>
+                  </div>
+                  <p class="text-muted-foreground text-sm">Extend the window beyond your deposits to catch withdrawals <span class="tip-wrap"><span class="tip-icon">?</span><span class="tip-content">Your actor deposited into TC — now set a time window to search for when they withdrew. Start from your earliest deposit and extend forward. Most actors withdraw within days, but some wait weeks.</span></span></p>
+                </div>
+                <div class="px-4 space-y-4">
+                  <div class="flex gap-4">
+                    <div class="flex-1">
+                      <label class="text-sm font-medium leading-none">From Date & Time (UTC) <span class="tip-wrap"><span class="tip-icon">?</span><span class="tip-content">Start of your analysis window. Auto-populated from your earliest selected deposit. Set the time to just after your last deposit to ensure candidates are withdrawals, not deposits.</span></span></label>
+                      <div class="flex gap-2 mt-1">
+                        <input type="date" id="start-date" class="h-8 flex-1 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm text-foreground outline-none transition-colors focus:ring-2" />
+                        <input type="time" id="start-time" value="00:00" class="h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm text-foreground outline-none transition-colors focus:ring-2" style="width:100px;" />
+                      </div>
+                    </div>
+                    <div>
+                      <label class="text-sm font-medium leading-none">Add Days <span class="tip-wrap"><span class="tip-icon">?</span><span class="tip-content">How far after deposits to search for withdrawals. Quick actors withdraw within 1-3 days — smaller anonymity set, easier to catch. Patient actors wait 30-90 days — wider window needed, use gas funder or MCA analysis to narrow results.</span></span></label>
+                      <select id="window-days" class="w-full mt-1">
+                        <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
+                        <option value="5">5</option><option value="7">7</option><option value="14">14</option>
+                        <option value="30">30</option><option value="60">60</option><option value="90">90</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="btn-row">
+                    <button id="btn-withdrawals" class="inline-flex items-center justify-center rounded-lg h-8 gap-1.5 px-2.5 text-sm font-medium bg-primary text-primary-foreground transition-all disabled:opacity-50">
+                      Explore Withdrawal Candidates
+                    </button>
+                    <span id="status-withdrawals" class="inline-status"></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right: Analyse Withdrawals filter (appears after search) -->
+              <div id="section-withdrawals" class="section-filter-panel" style="display:none;">
+                <div class="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 flex flex-col gap-4 py-4">
+                  <div class="px-4">
+                    <h2 class="text-base font-medium">Analyse Withdrawals</h2>
+               <p class="text-muted-foreground text-sm">Click pools to include/exclude <span class="tip-wrap"><span class="tip-icon">?</span><span class="tip-content"><strong>Include</strong> pools your actor used — candidates must show withdrawal activity in at least one included pool.<br><br><strong>Exclude</strong> pools your actor didn't use — candidates with any withdrawal activity in an excluded pool are removed.<br><br><strong>Tip:</strong> If your deposit vector is (0,0,3,1), exclude 🟣 0.1 and 🟠 1 — your actor never used those pools.</span></span></p>
+             </div>
+              <div class="px-4">
+                <p class="text-xs text-muted-foreground mb-2">Click a pool to exclude it — click again to include</p>
+                <table class="filter-table">
+                  <thead><tr>
+                    <th class="bg-purple" data-pool="01">🟣 0.1 ETH</th>
+                    <th class="bg-orange" data-pool="1">🟠 1 ETH</th>
+                    <th class="bg-green" data-pool="10">🟢 10 ETH</th>
+                    <th class="bg-red" data-pool="100">🔴 100 ETH</th>
+                  </tr></thead>
+                  <tbody><tr>
+                    <td class="bg-purple" id="ft-01" data-pool="01">✓</td>
+                    <td class="bg-orange" id="ft-1" data-pool="1">✓</td>
+                    <td class="bg-green" id="ft-10" data-pool="10">✓</td>
+                    <td class="bg-red" id="ft-100" data-pool="100">✓</td>
+                  </tr></tbody>
+                </table>
+              </div>
+              <div class="px-4 text-sm text-muted-foreground">
+                Showing <strong id="filtered-count">0</strong> of <strong id="total-count">0</strong> candidates
+              </div>
+
+              <div class="px-4 btn-row mt-2">
+                <button id="btn-reactor" class="inline-flex items-center justify-center rounded-lg h-8 gap-1.5 px-2.5 text-sm font-medium bg-primary text-primary-foreground transition-all disabled:opacity-50">
+                  📊 Add Selected to Reactor Graph
+                </button>
+                <span id="status-reactor" class="inline-status"></span>
+              </div>
+            </div>
+              </div>
+            </div>
+            <!-- TC General Activity (half width, below withdrawal window) -->
+            <div id="section-exposure" style="display:none;max-width:50%;">
+              <details class="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 py-4">
+                <summary class="px-4 cursor-pointer text-base font-medium">📊 Tornado Cash General Activity</summary>
+                <div class="px-4 mt-2">
+                  <p class="text-muted-foreground text-sm">Where did TC withdrawal funds go during this window?</p>
+                </div>
+                <div class="px-4 mt-3 btn-row">
+                  <button id="btn-exposure" class="inline-flex items-center justify-center rounded-lg h-8 gap-1.5 px-2.5 text-sm font-medium bg-primary text-primary-foreground transition-all disabled:opacity-50">
+                    Load Activity
+                  </button>
+                  <span id="status-exposure" class="inline-status"></span>
+                </div>
+                <div class="px-4 mt-3 overflow-x-auto" id="exposure-table-wrap"></div>
+              </details>
+            </div>
+          </div>
+
+          <!-- Status Legend -->
+          <div id="section-legend" style="display:none;">
+            <details class="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 py-3">
+              <summary class="px-4 cursor-pointer text-sm font-medium text-muted-foreground">Status Legend</summary>
+              <div class="px-4 mt-2 grid grid-cols-2 gap-2 text-xs">
+                <div><span style="background:rgba(239,68,68,0.2);color:#f87171;border:1px solid rgba(239,68,68,0.4);border-radius:4px;padding:1px 6px;font-size:0.6rem;font-weight:600;">⚠️ DEPOSIT ADDR</span> Also appears in your deposit list — opsec failure</div>
+                <div><span style="background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:4px;padding:1px 6px;font-size:0.6rem;font-weight:600;">🆕 TC-ONLY</span> 1 day active, only received from TC</div>
+                <div><span style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);border-radius:4px;padding:1px 6px;font-size:0.6rem;font-weight:600;">NEW</span> 1 day active, other inbound sources too</div>
+                <div><span style="background:rgba(148,163,184,0.1);color:#94a3b8;border:1px solid rgba(148,163,184,0.2);border-radius:4px;padding:1px 6px;font-size:0.6rem;">MIXED</span> Active 30+ days, pre-existing address</div>
+                <div><span style="background:rgba(249,115,22,0.15);color:#fb923c;border:1px solid rgba(249,115,22,0.3);border-radius:4px;padding:1px 6px;font-size:0.6rem;">💰 HOLDING</span> Balance over $100, funds not moved</div>
+                <div><span style="background:rgba(168,85,247,0.15);color:#c084fc;border:1px solid rgba(168,85,247,0.3);border-radius:4px;padding:1px 6px;font-size:0.6rem;">📡 obs</span> IP geolocation observations with top countries</div>
+                <div><span style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);border-radius:4px;padding:1px 6px;font-size:0.6rem;font-weight:600;">🧅 TOR</span> / <span style="background:rgba(249,115,22,0.15);color:#fb923c;border:1px solid rgba(249,115,22,0.3);border-radius:4px;padding:1px 6px;font-size:0.6rem;font-weight:600;">🔀 PROXY</span> / <span style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);border-radius:4px;padding:1px 6px;font-size:0.6rem;font-weight:600;">🛡️ VPN</span> Privacy tool detected in observations</div>
+              </div>
+            </details>
+          </div>
+
+          <!-- Withdrawal candidates table (full width below) -->
+          <div id="section-withdrawals-table" style="display:none;">
+            <div class="mb-2">
+              <button id="btn-select-all-cands" class="inline-flex items-center justify-center rounded-lg h-7 px-2.5 text-xs font-medium border border-border bg-background text-foreground hover:bg-muted transition-all">
+                Select All Visible
+              </button>
+            </div>
+            <div class="overflow-x-auto" id="withdrawals-table-wrap"></div>
+          </div>
+
+          <!-- STEP 3: DRILL DOWN -->
+          <div id="section-drilldown" style="display:none;">
+            <div class="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 flex flex-col gap-4 py-4">
+              <div class="px-4">
+                <div class="step-header">
+                  <span class="step-num step-pending" id="step3-badge">3</span>
+                  <h2 class="text-base font-medium">Drill Down</h2>
+                </div>
+                <p class="text-muted-foreground text-sm">Find links between withdrawal candidates using the same window</p>
+              </div>
+              <div class="px-4 btn-row">
+                <button id="btn-gas" class="inline-flex items-center justify-center rounded-lg h-8 gap-1.5 px-2.5 text-sm font-medium bg-primary text-primary-foreground transition-all disabled:opacity-50">
+                  ⛽ Gas Funder Analysis
+                </button>
+                <button id="btn-mca" class="inline-flex items-center justify-center rounded-lg h-8 gap-1.5 px-2.5 text-sm font-medium border border-border bg-background text-foreground hover:bg-muted transition-all disabled:opacity-50">
+                  🔀 Forward MCA
+                </button>
+                <span id="status-drill" class="inline-status"></span>
+              </div>
+            </div>
+            <div id="gas-card" class="mt-4 rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 flex flex-col gap-4 py-4" style="display:none;">
+              <div class="px-4">
+                <h2 class="text-base font-medium">⛽ Shared Gas Funders</h2>
+                <p class="text-muted-foreground text-sm">Addresses that funded gas to 2+ withdrawal candidates</p>
+              </div>
+              <div class="px-4 overflow-x-auto" id="gas-table-wrap"></div>
+            </div>
+            <div id="mca-card" class="mt-4 rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 flex flex-col gap-4 py-4" style="display:none;">
+              <div class="px-4">
+                <h2 class="text-base font-medium">🔀 Shared Forward Destinations</h2>
+                <p class="text-muted-foreground text-sm">Clusters/exchanges that received from 2+ withdrawal candidates</p>
+              </div>
+              <div class="px-4 overflow-x-auto" id="mca-table-wrap"></div>
+            </div>
+          </div>
+
+          <!-- GUIDE -->
+          </div><!-- end main-content -->
+
+          <div id="section-guide" style="display:none;" class="space-y-6">
+            <div class="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 flex flex-col gap-4 py-4">
+              <div class="px-4"><h2 class="text-base font-medium">How Tornado Cash Works</h2></div>
+              <div class="px-4 space-y-3 text-sm">
+                <div class="rounded-lg bg-muted p-4 font-mono text-xs">Deposit Address ──→ [ TC Pool ] ──→ Fresh Withdrawal Address<br/>&nbsp;&nbsp;&nbsp;&nbsp;(known)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(break)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(unknown link)</div>
+                <ol class="list-decimal list-inside space-y-1">
+                  <li><strong>Deposit</strong> — Fixed ETH amount sent to a pool contract, cryptographic note received off-chain.</li>
+                  <li><strong>Wait</strong> — ETH sits in the pool. Longer wait = larger anonymity set.</li>
+                  <li><strong>Withdraw</strong> — Note presented via ZK proof. ETH goes to a fresh address.</li>
+                </ol>
+              </div>
+            </div>
+            <div class="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 flex flex-col gap-4 py-4">
+              <div class="px-4"><h2 class="text-base font-medium">ETH Pool Denominations</h2></div>
+              <div class="px-4"><table class="w-full text-sm"><thead class="border-b border-border"><tr>
+                <th class="px-4 py-3 text-left font-medium text-muted-foreground">Pool Contract</th>
+                <th class="px-4 py-3 text-left font-medium text-muted-foreground">Amount</th>
+                <th class="px-4 py-3 text-center font-medium text-muted-foreground">Label</th>
+              </tr></thead><tbody class="divide-y">
+                <tr><td class="px-4 py-3 font-mono text-xs">0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc</td><td class="px-4 py-3">0.1 ETH</td><td class="px-4 py-3 text-center">🟣</td></tr>
+                <tr><td class="px-4 py-3 font-mono text-xs">0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936</td><td class="px-4 py-3">1 ETH</td><td class="px-4 py-3 text-center">🟠</td></tr>
+                <tr><td class="px-4 py-3 font-mono text-xs">0x910Cbd523D972eb0a6f4cAe4618aD62622b39DbF</td><td class="px-4 py-3">10 ETH</td><td class="px-4 py-3 text-center">🟢</td></tr>
+                <tr><td class="px-4 py-3 font-mono text-xs">0xA160cdAB225685dA1d56aa342Ad8841c3b53f291</td><td class="px-4 py-3">100 ETH</td><td class="px-4 py-3 text-center">🔴</td></tr>
+              </tbody></table></div>
+            </div>
+            <div class="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 flex flex-col gap-4 py-4">
+              <div class="px-4"><h2 class="text-base font-medium">Inside vs. Outside Window</h2></div>
+              <div class="px-4 text-sm space-y-2">
+                <p><strong class="text-success">🟢 Inside Window</strong> — Withdrawals during your investigation period. Could be your actor cashing out.</p>
+                <p><strong class="text-destructive">🔴 Outside Window</strong> — All other lifetime TC activity. Context on whether this is a habitual TC user.</p>
+                <p class="text-muted-foreground">Focus on candidates whose <strong>inside</strong> pattern matches your deposit vector.</p>
+              </div>
+            </div>
+            <div class="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 flex flex-col gap-4 py-4">
+              <div class="px-4"><h2 class="text-base font-medium">Window Size Guidance</h2></div>
+              <div class="px-4"><table class="w-full text-sm"><thead class="border-b border-border"><tr>
+                <th class="px-4 py-3 text-left font-medium text-muted-foreground">Window</th>
+                <th class="px-4 py-3 text-left font-medium text-muted-foreground">Use Case</th>
+              </tr></thead><tbody class="divide-y">
+                <tr><td class="px-4 py-3 font-medium">1–3 days</td><td class="px-4 py-3 text-muted-foreground">Impatient actors. Smaller anonymity set.</td></tr>
+                <tr><td class="px-4 py-3 font-medium">7–14 days</td><td class="px-4 py-3 text-muted-foreground">Good default. Balances coverage with candidate count.</td></tr>
+                <tr><td class="px-4 py-3 font-medium">30–90 days</td><td class="px-4 py-3 text-muted-foreground">Patient actors. Look for consolidation or run MCA.</td></tr>
+              </tbody></table></div>
+            </div>
+            <div class="alert" role="alert">
+              <div class="alert-title">⚠️ Limitations</div>
+              <div class="alert-description">This is probabilistic, not deterministic. Always corroborate with other evidence. Sophisticated actors may use delays, intermediaries, bridges, or multiple rounds of TC.</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const SLUG = "tc-demixing-v2";
+      let allDeposits = [];
+      let allCandidates = [];
+
+      // ── Workflow ──
+      async function invoke(payload) {
+        try {
+          const res = await fetch(`/api/workflow/${SLUG}/invoke`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ input: payload }),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+          const data = await res.json();
+          return await poll(data.id);
+        } catch (e) {
+          if (e instanceof TypeError) { document.getElementById("sandbox-msg").style.display = "block"; return null; }
+          throw e;
+        }
+      }
+
+      async function poll(eid) {
+        while (true) {
+          const res = await fetch(`/api/workflow/${SLUG}/executions/${eid}`);
+          const data = await res.json();
+          if (data.status === "SUCCEEDED") return data.output;
+          if (data.status === "FAILED") throw new Error(data.error?.ErrorMessage || "Workflow failed");
+          if (data.status === "TIMED_OUT") throw new Error("Workflow timed out");
+          await new Promise(r => setTimeout(r, 3000));
+        }
+      }
+
+      function setInline(id, msg, isError) {
+        const el = document.getElementById(id);
+        el.className = isError ? "inline-status error" : "inline-status";
+        el.innerHTML = msg;
+      }
+      function setInlineLoading(id, msg) { setInline(id, `<span class="spinner"></span> ${msg}`, false); }
+
+      // ── UTC formatting ──
+      function fmtUTC(ts) {
+        const d = new Date(ts);
+        const dd = String(d.getUTCDate()).padStart(2, "0");
+        const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+        const yy = d.getUTCFullYear();
+        const hh = String(d.getUTCHours()).padStart(2, "0");
+        const mi = String(d.getUTCMinutes()).padStart(2, "0");
+        return `${dd}/${mm}/${yy} ${hh}:${mi} UTC`;
+      }
+      function toUTCTime(ts) {
+        const d = new Date(ts);
+        return String(d.getUTCHours()).padStart(2, "0") + ":" + String(d.getUTCMinutes()).padStart(2, "0");
+      }
+
+      function toISODate(ts) {
+        const d = new Date(ts);
+        return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+      }
+
+      function getStartDateTime() {
+        const d = document.getElementById("start-date").value;
+        const t = document.getElementById("start-time").value || "00:00";
+        return d ? d + "T" + t + ":00" : "";
+      }
+
+      function poolEmoji(p) {
+        return p === "0.1 ETH" ? "🟣 0.1 ETH" : p === "1 ETH" ? "🟠 1 ETH" : p === "10 ETH" ? "🟢 10 ETH" : p === "100 ETH" ? "🔴 100 ETH" : p;
+      }
+
+      function parseCSV(text) {
+        const lines = text.trim().split("\n");
+        const header = lines[0].trim().toLowerCase();
+        if (header !== "addresses") return null;
+        return lines.slice(1).map(l => l.trim()).filter(l => l);
+      }
+
+      // ── Resizable columns ──
+      function makeResizable(table) {
+        const ths = table.querySelectorAll("th");
+        ths.forEach(th => {
+          const handle = document.createElement("div");
+          handle.className = "col-resize-handle";
+          th.appendChild(handle);
+          let startX, startW;
+          handle.addEventListener("mousedown", e => {
+            startX = e.pageX; startW = th.offsetWidth;
+            handle.classList.add("active");
+            const onMove = ev => { th.style.width = Math.max(40, startW + ev.pageX - startX) + "px"; };
+            const onUp = () => { handle.classList.remove("active"); document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+            document.addEventListener("mousemove", onMove);
+            document.addEventListener("mouseup", onUp);
+            e.preventDefault();
+          });
+        });
+      }
+
+      // ── STEP 1: Load Deposits ──
+      // ── Input mode toggle ──
+      let inputMode = "addresses";
+      function setInputMode(mode) {
+        inputMode = mode;
+        document.getElementById("addr-input").style.display = mode === "addresses" ? "" : "none";
+        document.getElementById("tx-input").style.display = mode === "transactions" ? "" : "none";
+        document.getElementById("mode-addresses").className = mode === "addresses"
+          ? "inline-flex items-center justify-center rounded-lg h-6 px-2 text-xs font-medium bg-primary text-primary-foreground transition-all"
+          : "inline-flex items-center justify-center rounded-lg h-6 px-2 text-xs font-medium border border-border bg-background text-foreground hover:bg-muted transition-all";
+        document.getElementById("mode-transactions").className = mode === "transactions"
+          ? "inline-flex items-center justify-center rounded-lg h-6 px-2 text-xs font-medium bg-primary text-primary-foreground transition-all"
+          : "inline-flex items-center justify-center rounded-lg h-6 px-2 text-xs font-medium border border-border bg-background text-foreground hover:bg-muted transition-all";
+      }
+      // Make it available globally for onclick
+      window.setInputMode = setInputMode;
+
+      document.getElementById("btn-deposits").addEventListener("click", async () => {
+        const sid = "status-deposits";
+
+        // Reset everything
+        allDeposits = [];
+        allCandidates = [];
+        document.getElementById("opsec-alert").style.display = "none";
+        document.getElementById("opsec-alert").innerHTML = "";
+        document.getElementById("sb-loaded").style.display = "none";
+        document.getElementById("sb-selected").style.display = "none";
+        document.getElementById("sb-window").style.display = "none";
+        document.getElementById("sb-sel-withdrawals").style.display = "none";
+        document.getElementById("sb-drill").style.display = "none";
+        document.getElementById("section-deposits").style.display = "none";
+        document.getElementById("section-window").style.display = "none";
+        document.getElementById("section-withdrawals").style.display = "none";
+        document.getElementById("section-withdrawals-table").style.display = "none";
+        document.getElementById("section-legend").style.display = "none";
+        document.getElementById("section-exposure").style.display = "none";
+        document.getElementById("section-drilldown").style.display = "none";
+        const gasCard = document.getElementById("gas-card"); if (gasCard) gasCard.style.display = "none";
+        const mcaCard = document.getElementById("mca-card"); if (mcaCard) mcaCard.style.display = "none";
+        document.getElementById("step1-badge").className = "step-num step-active";
+        document.getElementById("step2-badge").className = "step-num step-pending";
+        document.getElementById("step3-badge").className = "step-num step-pending";
+        setInline("status-selection", "", false);
+        setInline("status-withdrawals", "", false);
+        setInline("status-drill", "", false);
+        setInline("status-reactor", "", false);
+
+        let addresses = [];
+        let transactions = [];
+        const file = document.getElementById("csv-upload").files[0];
+        if (file) {
+          const text = await file.text();
+          const lines = text.trim().split("\n");
+          const header = lines[0].trim().toLowerCase();
+          if (header === "addresses") {
+            addresses = lines.slice(1).map(l => l.trim()).filter(l => l);
+          } else if (header === "transactions") {
+            transactions = lines.slice(1).map(l => l.trim()).filter(l => l);
+          } else {
+            setInline(sid, "CSV must have an 'addresses' or 'transactions' header", true); return;
+          }
+        } else if (inputMode === "transactions") {
+          const raw = document.getElementById("tx-input").value.trim();
+          if (!raw) { setInline(sid, "Enter transaction hashes", true); return; }
+          transactions = raw.split(/[,\s]+/).filter(a => a);
+        } else {
+          const raw = document.getElementById("addr-input").value.trim();
+          if (!raw) { setInline(sid, "Enter addresses or upload CSV", true); return; }
+          addresses = raw.split(/[,\s]+/).filter(a => a);
+        }
+
+        const inputCount = addresses.length || transactions.length;
+        const inputLabel = addresses.length ? "address(es)" : "transaction(s)";
+        setInlineLoading(sid, `Querying ${inputCount} ${inputLabel}...`);
+        try {
+          const payload = { action: "deposits" };
+          if (addresses.length) payload.addresses = addresses;
+          if (transactions.length) payload.transactions = transactions;
+          const result = await invoke(payload);
+          if (!result) return;
+
+          allDeposits = (result.deposits || [])
+            .filter(d => d.pool && d.pool !== "other")
+            .map(d => ({ ...d, selected: false }));
+
+          // Sidebar: deposit vector (recalculate from filtered deposits)
+          const vec = { p01: 0, p1: 0, p10: 0, p100: 0 };
+          allDeposits.forEach(d => {
+            if (d.pool === "0.1 ETH") vec.p01++;
+            else if (d.pool === "1 ETH") vec.p1++;
+            else if (d.pool === "10 ETH") vec.p10++;
+            else if (d.pool === "100 ETH") vec.p100++;
+          });
+          const vecEth = 0.1 * vec.p01 + 1 * vec.p1 + 10 * vec.p10 + 100 * vec.p100;
+          document.getElementById("sb-loaded").style.display = "";
+          document.getElementById("lv-01").textContent = vec.p01;
+          document.getElementById("lv-1").textContent = vec.p1;
+          document.getElementById("lv-10").textContent = vec.p10;
+          document.getElementById("lv-100").textContent = vec.p100;
+          document.getElementById("lv-total").textContent = vecEth;
+          document.getElementById("sb-loaded-count").textContent = `${allDeposits.length} deposit(s) loaded`;
+
+          // Store opsec failure addresses for badge display in deposit table
+          window.opsecAddresses = new Set();
+          if (result.opsec_failures) {
+            result.opsec_failures.forEach(o => {
+              if (o.receiver_address) window.opsecAddresses.add(o.receiver_address.toLowerCase());
+            });
+          }
+
+          renderDepositsTable();
+
+          document.getElementById("section-deposits").style.display = "";
+          document.getElementById("section-window").style.display = "";
+          document.getElementById("step1-badge").className = "step-num step-active";
+
+          // Auto-set start date from earliest deposit
+          if (allDeposits.length > 0) {
+            // Set date and time from the earliest deposit
+            const earliest = allDeposits[0].transaction_timestamp;
+            document.getElementById("start-date").value = toISODate(earliest);
+            document.getElementById("start-time").value = toUTCTime(earliest);
+          }
+
+          setInline(sid, `✅ ${result.total_deposits} deposit(s)`, false);
+          // Clear inputs
+          document.getElementById("csv-upload").value = "";
+        } catch (e) { setInline(sid, e.message, true); }
+      });
+
+      function renderDepositsTable() {
+        const wrap = document.getElementById("deposits-table-wrap");
+        if (!allDeposits.length) { wrap.innerHTML = "<p class='text-sm text-muted-foreground'>No deposits found.</p>"; return; }
+
+        let html = `<table class="resizable-table text-sm"><thead class="border-b border-border"><tr>
+          <th class="px-3 py-2 text-center font-medium text-muted-foreground" style="width:40px;">Sel</th>
+          <th class="px-3 py-2 text-left font-medium text-muted-foreground">Timestamp (UTC)</th>
+          <th class="px-3 py-2 text-left font-medium text-muted-foreground">From Address</th>
+          <th class="px-3 py-2 text-left font-medium text-muted-foreground">Pool</th>
+          <th class="px-3 py-2 text-left font-medium text-muted-foreground">Transaction Hash</th>
+        </tr></thead><tbody class="divide-y">`;
+        allDeposits.forEach((d, i) => {
+          const addr = d.from_address || "";
+          const hasWithdrawal = window.opsecAddresses && window.opsecAddresses.has(addr.toLowerCase());
+          const wdBadge = hasWithdrawal ? ' <span style="background:rgba(239,68,68,0.2);color:#f87171;border:1px solid rgba(239,68,68,0.4);border-radius:4px;padding:1px 6px;font-size:0.6rem;font-weight:600;margin-left:4px;">⚠️ TC WITHDRAWAL</span>' : '';
+          html += `<tr class="hover:bg-muted transition-colors">
+            <td class="px-3 py-2 text-center"><input type="checkbox" data-idx="${i}" class="dep-check" ${d.selected ? "checked" : ""} /></td>
+            <td class="px-3 py-2 text-xs">${fmtUTC(d.transaction_timestamp)}</td>
+            <td class="px-3 py-2 font-mono text-xs">${addr}${wdBadge}</td>
+            <td class="px-3 py-2">${poolEmoji(d.pool)}</td>
+            <td class="px-3 py-2 font-mono text-xs">${d.transaction_hash || ""}</td>
+          </tr>`;
+        });
+        html += "</tbody></table>";
+        wrap.innerHTML = html;
+        makeResizable(wrap.querySelector("table"));
+
+        wrap.querySelectorAll(".dep-check").forEach(cb => {
+          cb.addEventListener("change", e => { allDeposits[parseInt(e.target.dataset.idx)].selected = e.target.checked; });
+        });
+      }
+
+      // ── Apply Selection ──
+      document.getElementById("btn-apply-selection").addEventListener("click", () => {
+        const sid = "status-selection";
+        const selected = allDeposits.filter(d => d.selected);
+        if (!selected.length) { setInline(sid, "Select at least one deposit", true); return; }
+
+        let sv = { p01: 0, p1: 0, p10: 0, p100: 0 };
+        selected.forEach(d => {
+          if (d.pool === "0.1 ETH") sv.p01++;
+          else if (d.pool === "1 ETH") sv.p1++;
+          else if (d.pool === "10 ETH") sv.p10++;
+          else if (d.pool === "100 ETH") sv.p100++;
+        });
+        const totalEth = 0.1 * sv.p01 + 1 * sv.p1 + 10 * sv.p10 + 100 * sv.p100;
+
+        const timestamps = selected.map(d => new Date(d.transaction_timestamp).getTime());
+        const firstTs = new Date(Math.min(...timestamps));
+        const lastTs = new Date(Math.max(...timestamps));
+
+        // Sidebar: selected
+        document.getElementById("sb-selected").style.display = "";
+        document.getElementById("sb-sel-count").textContent = `Selected: ${selected.length} deposit(s)`;
+        document.getElementById("sb-sel-dates").textContent = `${fmtUTC(firstTs)} — ${fmtUTC(lastTs)}`;
+        document.getElementById("sv-01").textContent = sv.p01;
+        document.getElementById("sv-1").textContent = sv.p1;
+        document.getElementById("sv-10").textContent = sv.p10;
+        document.getElementById("sv-100").textContent = sv.p100;
+        document.getElementById("sv-total").textContent = totalEth;
+
+        // Auto-populate withdrawal From Date + Time with latest selected deposit
+        // Use the LATEST deposit time so the window starts after all deposits
+        const latestTs = new Date(Math.max(...timestamps));
+        document.getElementById("start-date").value = toISODate(latestTs);
+        document.getElementById("start-time").value = toUTCTime(latestTs);
+
+        document.getElementById("step1-badge").className = "step-num step-done";
+        document.getElementById("step2-badge").className = "step-num step-active";
+        setInline(sid, `✅ Vector (${sv.p01},${sv.p1},${sv.p10},${sv.p100})`, false);
+      });
+
+      // ── STEP 2: Withdrawal Candidates ──
+      document.getElementById("btn-withdrawals").addEventListener("click", async () => {
+        const sid = "status-withdrawals";
+        const startDate = getStartDateTime();
+        const days = parseInt(document.getElementById("window-days").value);
+        if (!startDate) { setInline(sid, "Set a start date", true); return; }
+
+        setInlineLoading(sid, `Searching candidates (${startDate} + ${days} days)...`);
+        try {
+          const result = await invoke({ action: "withdrawals", start_date: startDate, days });
+          if (!result) return;
+
+          allCandidates = result.candidates || [];
+
+          document.getElementById("sb-window").style.display = "";
+          document.getElementById("sb-window-info").textContent = `${startDate} + ${days} days`;
+          document.getElementById("sb-window-candidates").textContent = `${allCandidates.length} candidate(s)`;
+
+          document.getElementById("total-count").textContent = allCandidates.length;
+          document.getElementById("section-withdrawals").style.display = "";
+          document.getElementById("section-withdrawals-table").style.display = "";
+          document.getElementById("section-legend").style.display = "";
+          document.getElementById("section-exposure").style.display = "";
+          document.getElementById("section-drilldown").style.display = "";
+          document.getElementById("step2-badge").className = "step-num step-done";
+          document.getElementById("step3-badge").className = "step-num step-active";
+          renderCandidates();
+          setInline(sid, `✅ ${allCandidates.length} candidate(s)`, false);
+        } catch (e) { setInline(sid, e.message, true); }
+      });
+
+      // Filter table click handlers
+      const excludeState = { "01": false, "1": false, "10": false, "100": false };
+      document.querySelectorAll(".filter-table td[data-pool]").forEach(td => {
+        td.addEventListener("click", () => {
+          const pool = td.dataset.pool;
+          excludeState[pool] = !excludeState[pool];
+          if (excludeState[pool]) {
+            td.classList.add("excluded");
+            td.textContent = "";
+          } else {
+            td.classList.remove("excluded");
+            td.textContent = "✓";
+          }
+          // Also toggle header
+          const th = document.querySelector(".filter-table th[data-pool='" + pool + "']");
+          renderCandidates();
+        });
+      });
+
+      let candSortKey = "inside_eth";
+      let candSortDir = "desc";
+
+      function renderCandidates() {
+        const ex01 = excludeState["01"];
+        const ex1 = excludeState["1"];
+        const ex10 = excludeState["10"];
+        const ex100 = excludeState["100"];
+
+        let filtered = allCandidates.filter(c => {
+          // Excluded pools: remove if inside > 0
+          if (ex01 && c.inside_01 > 0) return false;
+          if (ex1 && c.inside_1 > 0) return false;
+          if (ex10 && c.inside_10 > 0) return false;
+          if (ex100 && c.inside_100 > 0) return false;
+          // Included pools: must have inside > 0 for at least one included pool
+          let hasIncluded = false;
+          if (!ex01 && c.inside_01 > 0) hasIncluded = true;
+          if (!ex1 && c.inside_1 > 0) hasIncluded = true;
+          if (!ex10 && c.inside_10 > 0) hasIncluded = true;
+          if (!ex100 && c.inside_100 > 0) hasIncluded = true;
+          // If all pools excluded, show everything remaining
+          if (ex01 && ex1 && ex10 && ex100) return true;
+          return hasIncluded;
+        });
+
+        // Sort
+        filtered.sort((a, b) => {
+          let va = a[candSortKey], vb = b[candSortKey];
+          // For display fields
+          if (candSortKey === "entity") { va = a.entity_name || a.entity_category || ""; vb = b.entity_name || b.entity_category || ""; }
+          if (va == null) va = candSortDir === "desc" ? -Infinity : Infinity;
+          if (vb == null) vb = candSortDir === "desc" ? -Infinity : Infinity;
+          if (typeof va === "string") { return candSortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va); }
+          return candSortDir === "asc" ? va - vb : vb - va;
+        });
+
+        document.getElementById("filtered-count").textContent = filtered.length;
+        const wrap = document.getElementById("withdrawals-table-wrap");
+        if (!filtered.length) { wrap.innerHTML = "<p class='text-sm text-muted-foreground px-4'>No candidates match filters.</p>"; return; }
+
+        let html = `<table class="resizable-table text-sm" id="cand-table"><thead>
+        <tr>
+          <th colspan="3"></th>
+          <th colspan="5" class="px-2 py-1 text-center text-xs font-semibold" style="background:rgba(34,197,94,0.08);color:#4ade80;border-bottom:2px solid rgba(34,197,94,0.3);"><span class="tip-wrap">Withdrawal Window<span class="tip-content">TC withdrawal activity during your selected time period. These withdrawals could be your actor cashing out. Pool columns show count per denomination.</span></span></th>
+          <th colspan="5" class="px-2 py-1 text-center text-xs font-semibold" style="background:rgba(239,68,68,0.05);color:#f87171;opacity:0.7;border-bottom:2px solid rgba(239,68,68,0.2);"><span class="tip-wrap">Total Activity (All Time)<span class="tip-content">All other TC withdrawal activity for this address outside your window. High activity here with low inside activity suggests a regular TC user who overlapped your timeframe, not your actor.</span></span></th>
+          <th colspan="4"></th>
+        </tr>
+        <tr class="border-b border-border">
+          <th class="px-2 py-2 text-center font-medium text-muted-foreground" style="width:40px">Sel</th>
+          <th class="px-2 py-2 text-left font-medium text-muted-foreground sort-header" data-sort="address">Address</th>
+          <th class="px-2 py-2 text-left font-medium text-muted-foreground sort-header" data-sort="entity"><span class="tip-wrap">Entity<span class="tip-content">Chainalysis entity attribution for this cluster. Named entities (exchanges, protocols) are identified. Blank means unidentified.</span></span></th>
+          <th class="px-2 py-2 text-right font-medium sort-header" data-sort="inside_01" style="background:rgba(168,85,247,0.1);color:#c084fc;">🟣</th>
+          <th class="px-2 py-2 text-right font-medium sort-header" data-sort="inside_1" style="background:rgba(249,115,22,0.1);color:#fb923c;">🟠</th>
+          <th class="px-2 py-2 text-right font-medium sort-header" data-sort="inside_10" style="background:rgba(34,197,94,0.1);color:#4ade80;">🟢</th>
+          <th class="px-2 py-2 text-right font-medium sort-header" data-sort="inside_100" style="background:rgba(239,68,68,0.1);color:#f87171;">🔴</th>
+          <th class="px-2 py-2 text-right font-medium sort-header" data-sort="inside_eth" style="color:#4ade80;">Σ</th>
+          <th class="px-2 py-2 text-right font-medium sort-header" data-sort="outside_01" style="background:rgba(168,85,247,0.05);color:#c084fc;opacity:0.6;">🟣</th>
+          <th class="px-2 py-2 text-right font-medium sort-header" data-sort="outside_1" style="background:rgba(249,115,22,0.05);color:#fb923c;opacity:0.6;">🟠</th>
+          <th class="px-2 py-2 text-right font-medium sort-header" data-sort="outside_10" style="background:rgba(34,197,94,0.05);color:#4ade80;opacity:0.6;">🟢</th>
+          <th class="px-2 py-2 text-right font-medium sort-header" data-sort="outside_100" style="background:rgba(239,68,68,0.05);color:#f87171;opacity:0.6;">🔴</th>
+          <th class="px-2 py-2 text-right font-medium sort-header" data-sort="outside_eth" style="color:#f87171;opacity:0.6;">Σ</th>
+          <th class="px-2 py-2 text-left font-medium text-muted-foreground"><span class="tip-wrap">Status<span class="tip-content">Flags for this address: TC-ONLY (only received from TC), NEW (1 day old), MIXED (30+ days active), HOLDING (balance > $100), DEPOSIT ADDR (opsec failure), obs (geolocation data with country + TOR/VPN/PROXY).</span></span></th>
+          <th class="px-2 py-2 text-left font-medium text-muted-foreground sort-header" data-sort="top_dest_category"><span class="tip-wrap">Sends To<span class="tip-content">Top outbound destination by USD volume from sending exposure data. Shows where this address sent the most funds (exchange, DEX, bridge, etc.).</span></span></th>
+          <th class="px-2 py-2 text-right font-medium text-muted-foreground sort-header" data-sort="days_active"><span class="tip-wrap">Days<span class="tip-content">How many days the cluster has been active (first tx to last tx). 1 day = likely purpose-built for this withdrawal. 30+ days = pre-existing address.</span></span></th>
+          <th class="px-2 py-2 text-right font-medium text-muted-foreground sort-header" data-sort="balance_usd"><span class="tip-wrap">Bal $<span class="tip-content">Current ETH balance in USD. High balance = funds haven't moved yet. Near zero = funds already forwarded.</span></span></th>
+        </tr></thead><tbody class="divide-y">`;
+
+        // Build deposit address set for opsec check
+        const depositAddrs = new Set(allDeposits.map(d => (d.from_address || "").toLowerCase()));
+
+        for (const c of filtered) {
+          const entity = c.entity_name || c.entity_category || "—";
+          const bal = c.balance_usd != null ? "$" + Number(c.balance_usd).toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—";
+          const days = c.days_active ?? "—";
+
+          // Status badges
+          let badges = [];
+          const isDepositAddr = depositAddrs.has((c.address || "").toLowerCase());
+          if (isDepositAddr) {
+            badges.push('<span style="background:rgba(239,68,68,0.2);color:#f87171;border:1px solid rgba(239,68,68,0.4);border-radius:4px;padding:1px 6px;font-size:0.65rem;font-weight:600;">⚠️ DEPOSIT ADDR</span>');
+          }
+          const daysNum = c.days_active ?? 999;
+          const onlyTC = (c.distinct_senders || 0) <= 1;
+          if (daysNum <= 1 && onlyTC) {
+            badges.push('<span style="background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:4px;padding:1px 6px;font-size:0.65rem;font-weight:600;">🆕 TC-ONLY</span>');
+          } else if (daysNum <= 1) {
+            badges.push('<span style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);border-radius:4px;padding:1px 6px;font-size:0.65rem;font-weight:600;">NEW</span>');
+          } else if (daysNum > 30) {
+            badges.push('<span style="background:rgba(148,163,184,0.1);color:#94a3b8;border:1px solid rgba(148,163,184,0.2);border-radius:4px;padding:1px 6px;font-size:0.65rem;">MIXED</span>');
+          }
+          if (c.balance_usd != null && c.balance_usd > 100) {
+            badges.push('<span style="background:rgba(249,115,22,0.15);color:#fb923c;border:1px solid rgba(249,115,22,0.3);border-radius:4px;padding:1px 6px;font-size:0.65rem;">💰 HOLDING</span>');
+          }
+          // Observations badge with country flags and TOR/PROXY/VPN
+          if (c.obs_count && c.obs_count > 0) {
+            const countries = (c.obs_countries || "").split(",").filter(x => x);
+            const flags = countries.map(cc => {
+              const flag = cc.length === 2 ? String.fromCodePoint(...[...cc.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65)) : "";
+              return flag + cc;
+            }).join(" ");
+            badges.push(`<span style="background:rgba(168,85,247,0.15);color:#c084fc;border:1px solid rgba(168,85,247,0.3);border-radius:4px;padding:1px 6px;font-size:0.65rem;">📡 ${c.obs_count} obs ${flags}</span>`);
+            // TOR/PROXY/VPN flags
+            if (c.tor_count > 0) badges.push(`<span style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);border-radius:4px;padding:1px 6px;font-size:0.6rem;font-weight:600;">🧅 TOR (${c.tor_count})</span>`);
+            if (c.proxy_count > 0) badges.push(`<span style="background:rgba(249,115,22,0.15);color:#fb923c;border:1px solid rgba(249,115,22,0.3);border-radius:4px;padding:1px 6px;font-size:0.6rem;font-weight:600;">🔀 PROXY (${c.proxy_count})</span>`);
+            if (c.vpn_count > 0) badges.push(`<span style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);border-radius:4px;padding:1px 6px;font-size:0.6rem;font-weight:600;">🛡️ VPN (${c.vpn_count})</span>`);
+          }
+          const statusHtml = badges.join(' ');
+
+          // Sends To
+          let sendsTo = "—";
+          if (c.top_dest_name) {
+            sendsTo = `<span style="background:rgba(59,130,246,0.12);color:#60a5fa;border:1px solid rgba(59,130,246,0.25);border-radius:4px;padding:1px 6px;font-size:0.65rem;">${c.top_dest_category || ""}</span> ${c.top_dest_name}`;
+          } else if (c.top_dest_category) {
+            sendsTo = `<span style="background:rgba(59,130,246,0.12);color:#60a5fa;border:1px solid rgba(59,130,246,0.25);border-radius:4px;padding:1px 6px;font-size:0.65rem;">${c.top_dest_category}</span>`;
+          }
+
+          // Row highlight for deposit address opsec failure
+          const rowStyle = isDepositAddr ? 'background:rgba(239,68,68,0.06);' : '';
+
+          html += `<tr class="hover:bg-muted transition-colors" style="${rowStyle}">
+            <td class="px-2 py-2 text-center"><input type="checkbox" class="cand-check" data-addr="${c.address}" /></td>
+            <td class="px-2 py-2 font-mono text-xs">${c.address || ""}</td>
+            <td class="px-2 py-2 text-xs">${entity}</td>
+            <td class="px-2 py-2 text-right font-medium" style="color:#c084fc;${c.inside_01 ? 'background:rgba(168,85,247,0.2);' : ''}">${c.inside_01 || 0}</td>
+            <td class="px-2 py-2 text-right font-medium" style="color:#fb923c;${c.inside_1 ? 'background:rgba(249,115,22,0.2);' : ''}">${c.inside_1 || 0}</td>
+            <td class="px-2 py-2 text-right font-medium" style="color:#4ade80;${c.inside_10 ? 'background:rgba(34,197,94,0.2);' : ''}">${c.inside_10 || 0}</td>
+            <td class="px-2 py-2 text-right font-medium" style="color:#f87171;${c.inside_100 ? 'background:rgba(239,68,68,0.2);' : ''}">${c.inside_100 || 0}</td>
+            <td class="px-2 py-2 text-right font-medium" style="color:#4ade80;${c.inside_eth ? 'background:rgba(34,197,94,0.1);' : ''}">${c.inside_eth || 0}</td>
+            <td class="px-2 py-2 text-right" style="color:#c084fc;opacity:0.5;${c.outside_01 ? 'background:rgba(168,85,247,0.08);' : ''}">${c.outside_01 || 0}</td>
+            <td class="px-2 py-2 text-right" style="color:#fb923c;opacity:0.5;${c.outside_1 ? 'background:rgba(249,115,22,0.08);' : ''}">${c.outside_1 || 0}</td>
+            <td class="px-2 py-2 text-right" style="color:#4ade80;opacity:0.5;${c.outside_10 ? 'background:rgba(34,197,94,0.08);' : ''}">${c.outside_10 || 0}</td>
+            <td class="px-2 py-2 text-right" style="color:#f87171;opacity:0.5;${c.outside_100 ? 'background:rgba(239,68,68,0.08);' : ''}">${c.outside_100 || 0}</td>
+            <td class="px-2 py-2 text-right font-medium" style="color:#f87171;opacity:0.5;${c.outside_eth ? 'background:rgba(239,68,68,0.06);' : ''}">${c.outside_eth || 0}</td>
+            <td class="px-2 py-2 text-left" style="white-space:normal;">${statusHtml}</td>
+            <td class="px-2 py-2 text-left text-xs" style="white-space:normal;">${sendsTo}</td>
+            <td class="px-2 py-2 text-right">${days}</td>
+            <td class="px-2 py-2 text-right">${bal}</td>
+          </tr>`;
+        }
+        html += "</tbody></table>";
+        wrap.innerHTML = html;
+        makeResizable(wrap.querySelector("table"));
+
+        // Bind sort headers
+        wrap.querySelectorAll(".sort-header").forEach(th => {
+          th.style.cursor = "pointer";
+          th.addEventListener("click", () => {
+            const key = th.dataset.sort;
+            if (candSortKey === key) {
+              candSortDir = candSortDir === "asc" ? "desc" : "asc";
+            } else {
+              candSortKey = key;
+              candSortDir = "desc";
+            }
+            renderCandidates();
+          });
+        });
+
+        // Bind checkbox changes to update selected withdrawals vector
+        wrap.querySelectorAll(".cand-check").forEach(cb => {
+          cb.addEventListener("change", updateSelectedWithdrawals);
+        });
+      }
+
+      function updateSelectedWithdrawals() {
+        const checked = document.querySelectorAll(".cand-check:checked");
+        const addrs = Array.from(checked).map(c => c.dataset.addr).filter(a => a);
+        const selected = addrs.map(a => allCandidates.find(c => c.address === a)).filter(c => c);
+
+        const panel = document.getElementById("sb-sel-withdrawals");
+        if (selected.length === 0) {
+          panel.style.display = "none";
+          return;
+        }
+        panel.style.display = "";
+
+        let wv = { p01: 0, p1: 0, p10: 0, p100: 0 };
+        selected.forEach(c => {
+          wv.p01 += (c.inside_01 || 0);
+          wv.p1 += (c.inside_1 || 0);
+          wv.p10 += (c.inside_10 || 0);
+          wv.p100 += (c.inside_100 || 0);
+        });
+        const wvEth = Math.round((0.1 * wv.p01 + 1 * wv.p1 + 10 * wv.p10 + 100 * wv.p100) * 10) / 10;
+
+        document.getElementById("sb-wd-count").textContent = `${selected.length} selected`;
+        document.getElementById("wv-01").textContent = wv.p01;
+        document.getElementById("wv-1").textContent = wv.p1;
+        document.getElementById("wv-10").textContent = wv.p10;
+        document.getElementById("wv-100").textContent = wv.p100;
+        document.getElementById("wv-total").textContent = wvEth;
+      }
+
+      // ── STEP 3: Gas Funder ──
+      document.getElementById("btn-gas").addEventListener("click", async () => {
+        const sid = "status-drill";
+        const startDate = getStartDateTime();
+        const days = parseInt(document.getElementById("window-days").value);
+        if (!startDate) { setInline(sid, "Set a start date first", true); return; }
+
+        setInlineLoading(sid, "Analyzing gas funders...");
+        try {
+          const result = await invoke({ action: "gas_funder", start_date: startDate, days });
+          if (!result) return;
+
+          document.getElementById("gas-card").style.display = "";
+          const wrap = document.getElementById("gas-table-wrap");
+          if (!result.funders?.length) {
+            wrap.innerHTML = "<p class='text-sm text-muted-foreground'>No shared gas funders found.</p>";
+          } else {
+            let html = `<table class="resizable-table text-sm"><thead class="border-b border-border"><tr>
+              <th class="px-3 py-2 text-left font-medium text-muted-foreground">Gas Funder</th>
+              <th class="px-3 py-2 text-left font-medium text-muted-foreground">Name</th>
+              <th class="px-3 py-2 text-left font-medium text-muted-foreground">Category</th>
+              <th class="px-3 py-2 text-right font-medium text-muted-foreground">Funded</th>
+              <th class="px-3 py-2 text-right font-medium text-muted-foreground">Gas ETH</th>
+              <th class="px-3 py-2 text-left font-medium text-muted-foreground">First (UTC)</th>
+              <th class="px-3 py-2 text-left font-medium text-muted-foreground">Last (UTC)</th>
+            </tr></thead><tbody class="divide-y">`;
+            for (const f of result.funders) {
+              html += `<tr class="hover:bg-muted transition-colors">
+                <td class="px-3 py-2 font-mono text-xs">${f.gas_funder || ""}</td>
+                <td class="px-3 py-2 text-xs">${f.funder_name || "—"}</td>
+                <td class="px-3 py-2 text-xs">${f.funder_category || "—"}</td>
+                <td class="px-3 py-2 text-right font-medium">${f.candidates_funded}</td>
+                <td class="px-3 py-2 text-right">${f.total_gas_eth}</td>
+                <td class="px-3 py-2 text-xs">${fmtUTC(f.first_funding)}</td>
+                <td class="px-3 py-2 text-xs">${fmtUTC(f.last_funding)}</td>
+              </tr>`;
+            }
+            html += "</tbody></table>";
+            wrap.innerHTML = html;
+            makeResizable(wrap.querySelector("table"));
+          }
+
+          document.getElementById("sb-drill").style.display = "";
+          document.getElementById("sb-drill-info").textContent = `⛽ ${result.total_funders} shared gas funder(s)`;
+          setInline(sid, `✅ ${result.total_funders} shared gas funder(s)`, false);
+        } catch (e) { setInline(sid, e.message, true); }
+      });
+
+      // ── STEP 3: Forward MCA ──
+      document.getElementById("btn-mca").addEventListener("click", async () => {
+        const sid = "status-drill";
+        const startDate = getStartDateTime();
+        const days = parseInt(document.getElementById("window-days").value);
+        if (!startDate) { setInline(sid, "Set a start date first", true); return; }
+
+        setInlineLoading(sid, "Analyzing forward destinations...");
+        try {
+          const result = await invoke({ action: "forward_mca", start_date: startDate, days });
+          if (!result) return;
+
+          document.getElementById("mca-card").style.display = "";
+          const wrap = document.getElementById("mca-table-wrap");
+          if (!result.destinations?.length) {
+            wrap.innerHTML = "<p class='text-sm text-muted-foreground'>No shared forward destinations found.</p>";
+          } else {
+            let html = `<table class="resizable-table text-sm"><thead class="border-b border-border"><tr>
+              <th class="px-3 py-2 text-left font-medium text-muted-foreground">Destination</th>
+              <th class="px-3 py-2 text-left font-medium text-muted-foreground">Name</th>
+              <th class="px-3 py-2 text-left font-medium text-muted-foreground">Category</th>
+              <th class="px-3 py-2 text-right font-medium text-muted-foreground">Senders</th>
+              <th class="px-3 py-2 text-right font-medium text-muted-foreground">ETH</th>
+              <th class="px-3 py-2 text-right font-medium text-muted-foreground">USD</th>
+              <th class="px-3 py-2 text-right font-medium text-muted-foreground">Dep Addrs</th>
+            </tr></thead><tbody class="divide-y">`;
+            for (const d of result.destinations) {
+              html += `<tr class="hover:bg-muted transition-colors">
+                <td class="px-3 py-2 font-mono text-xs">${d.destination_cluster || ""}</td>
+                <td class="px-3 py-2 text-xs">${d.destination_name || "—"}</td>
+                <td class="px-3 py-2 text-xs">${d.destination_category || "—"}</td>
+                <td class="px-3 py-2 text-right font-medium">${d.candidates_sending}</td>
+                <td class="px-3 py-2 text-right">${d.total_eth}</td>
+                <td class="px-3 py-2 text-right">$${Number(d.total_usd).toLocaleString()}</td>
+                <td class="px-3 py-2 text-right">${d.deposit_addresses_used}</td>
+              </tr>`;
+            }
+            html += "</tbody></table>";
+            wrap.innerHTML = html;
+            makeResizable(wrap.querySelector("table"));
+          }
+
+          document.getElementById("sb-drill").style.display = "";
+          const info = document.getElementById("sb-drill-info");
+          const existing = info.textContent;
+          info.textContent = (existing && !existing.includes("🔀") ? existing + " | " : "") + `🔀 ${result.total_destinations} shared dest(s)`;
+          setInline(sid, `✅ ${result.total_destinations} shared destination(s)`, false);
+        } catch (e) { setInline(sid, e.message, true); }
+      });
+
+      // ── Select all visible candidates ──
+      document.getElementById("btn-select-all-cands").addEventListener("click", () => {
+        const checks = document.querySelectorAll(".cand-check");
+        const allChecked = Array.from(checks).every(c => c.checked);
+        checks.forEach(c => { c.checked = !allChecked; });
+        updateSelectedWithdrawals();
+      });
+
+      // ── Reactor Graph ──
+      const btnReactor = document.getElementById("btn-reactor");
+      let reactorRunning = false;
+      btnReactor.addEventListener("click", async () => {
+        if (reactorRunning) return;
+        const sid = "status-reactor";
+        const checked = document.querySelectorAll(".cand-check:checked");
+
+        // Build withdrawal candidates with vectors and sends-to
+        const withdrawalAddresses = Array.from(checked).map(c => {
+          const addr = c.dataset.addr;
+          if (!addr) return null;
+          const cand = allCandidates.find(x => x.address === addr);
+          if (cand) {
+            const v = `${cand.inside_01||0},${cand.inside_1||0},${cand.inside_10||0},${cand.inside_100||0}`;
+            return {
+              address: addr, vector: v, side: "withdrawal",
+              sends_to: cand.top_dest_name || null,
+              sends_to_category: cand.top_dest_category || null,
+              sends_to_cluster_id: cand.top_dest_cluster_id || null,
+            };
+          }
+          return { address: addr, vector: "", side: "withdrawal" };
+        }).filter(a => a);
+
+        if (!withdrawalAddresses.length) { setInline(sid, "Select at least one candidate", true); return; }
+
+        // Also include deposit addresses
+        const depositAddrs = [...new Set(allDeposits.map(d => d.from_address).filter(a => a))];
+        const depositEntries = depositAddrs.map(a => ({ address: a, vector: "", side: "deposit" }));
+
+        const allAddresses = [...depositEntries, ...withdrawalAddresses];
+
+        reactorRunning = true;
+        btnReactor.disabled = true;
+        setInlineLoading(sid, `Building graph with ${depositEntries.length} deposit(s) + ${withdrawalAddresses.length} withdrawal candidate(s)...`);
+        try {
+          const result = await invoke({ action: "reactor_graph", addresses: allAddresses });
+          if (!result) return;
+
+          setInline(sid, `✅ Graph created — <a href="${result.reactor_url}" target="_blank" style="color:#60a5fa;text-decoration:underline;font-weight:600;">Open in Reactor ↗</a>`, false);
+        } catch (e) { setInline(sid, e.message, true); }
+        finally {
+          reactorRunning = false;
+          btnReactor.disabled = false;
+        }
+      });
+
+      // ── Withdrawal Exposure ──
+      document.getElementById("btn-exposure").addEventListener("click", async () => {
+        const sid = "status-exposure";
+        const startDate = getStartDateTime();
+        const days = parseInt(document.getElementById("window-days").value);
+        if (!startDate) { setInline(sid, "Set a start date first", true); return; }
+
+        setInlineLoading(sid, "Loading exposure data...");
+        try {
+          const result = await invoke({ action: "withdrawal_exposure", start_date: startDate, days });
+          if (!result) return;
+
+          const wrap = document.getElementById("exposure-table-wrap");
+          const pools = result.pool_summary || [];
+          const destinations = result.destinations || [];
+
+          let html = "";
+
+          // Pool summary with color-coded rows
+          if (pools.length) {
+            const poolColors = { "0.1 ETH": "#c084fc", "1 ETH": "#fb923c", "10 ETH": "#4ade80", "100 ETH": "#f87171" };
+            const poolBgs = { "0.1 ETH": "rgba(168,85,247,0.12)", "1 ETH": "rgba(249,115,22,0.12)", "10 ETH": "rgba(34,197,94,0.12)", "100 ETH": "rgba(239,68,68,0.12)" };
+            const poolEmojis = { "0.1 ETH": "🟣", "1 ETH": "🟠", "10 ETH": "🟢", "100 ETH": "🔴" };
+
+            html += `<p class="text-xs font-semibold text-muted-foreground mb-2">TC Withdrawals by Pool</p>`;
+            html += `<table class="w-full text-sm mb-4"><thead class="border-b border-border"><tr>
+              <th class="px-3 py-2 text-left font-medium text-muted-foreground">Pool</th>
+              <th class="px-3 py-2 text-right font-medium text-muted-foreground">Withdrawals</th>
+              <th class="px-3 py-2 text-right font-medium text-muted-foreground">Addresses</th>
+              <th class="px-3 py-2 text-right font-medium text-muted-foreground">ETH</th>
+              <th class="px-3 py-2 text-right font-medium text-muted-foreground">USD</th>
+            </tr></thead><tbody class="divide-y">`;
+            for (const p of pools) {
+              if (p.pool === "other") continue;
+              const color = poolColors[p.pool] || "#94a3b8";
+              const bg = poolBgs[p.pool] || "transparent";
+              const emoji = poolEmojis[p.pool] || "";
+              html += `<tr style="background:${bg};">
+                <td class="px-3 py-2 font-medium" style="color:${color};">${emoji} ${p.pool}</td>
+                <td class="px-3 py-2 text-right" style="color:${color};">${p.withdrawal_count}</td>
+                <td class="px-3 py-2 text-right" style="color:${color};">${p.unique_addresses}</td>
+                <td class="px-3 py-2 text-right" style="color:${color};">${p.total_eth}</td>
+                <td class="px-3 py-2 text-right" style="color:${color};">$${Number(p.total_usd).toLocaleString()}</td>
+              </tr>`;
+            }
+            html += "</tbody></table>";
+          }
+
+          // Destinations
+          if (destinations.length) {
+            const grandTotalUsd = destinations.reduce((s, e) => s + (e.total_usd || 0), 0);
+            html += `<p class="text-xs font-semibold text-muted-foreground mb-2">Where Funds Went</p>`;
+            html += `<table class="resizable-table text-sm"><thead class="border-b border-border"><tr>
+              <th class="px-3 py-2 text-left font-medium text-muted-foreground">Category</th>
+              <th class="px-3 py-2 text-left font-medium text-muted-foreground">Name</th>
+              <th class="px-3 py-2 text-right font-medium text-muted-foreground">From</th>
+              <th class="px-3 py-2 text-right font-medium text-muted-foreground">ETH</th>
+              <th class="px-3 py-2 text-right font-medium text-muted-foreground">USD</th>
+              <th class="px-3 py-2 text-right font-medium text-muted-foreground">%</th>
+            </tr></thead><tbody class="divide-y">`;
+            for (const e of destinations) {
+              const pct = grandTotalUsd > 0 ? ((e.total_usd / grandTotalUsd) * 100).toFixed(1) : "0";
+              const catBadge = e.category !== "unidentified"
+                ? `<span style="background:rgba(59,130,246,0.12);color:#60a5fa;border:1px solid rgba(59,130,246,0.25);border-radius:4px;padding:1px 6px;font-size:0.65rem;">${e.category}</span>`
+                : `<span style="color:#64748b;font-size:0.75rem;">unidentified</span>`;
+              html += `<tr class="hover:bg-muted transition-colors">
+                <td class="px-3 py-2 text-xs">${catBadge}</td>
+                <td class="px-3 py-2 text-xs">${e.name !== "unidentified" ? e.name : "—"}</td>
+                <td class="px-3 py-2 text-right">${e.from_candidates}</td>
+                <td class="px-3 py-2 text-right">${e.total_eth}</td>
+                <td class="px-3 py-2 text-right">$${Number(e.total_usd).toLocaleString()}</td>
+                <td class="px-3 py-2 text-right font-medium">${pct}%</td>
+              </tr>`;
+            }
+            html += "</tbody></table>";
+          }
+
+          if (!html) html = "<p class='text-sm text-muted-foreground'>No activity found.</p>";
+          wrap.innerHTML = html;
+          setInline(sid, `✅ ${exposure.length} destination(s)`, false);
+        } catch (e) { setInline(sid, e.message, true); }
+      });
+
+      // ── Guide toggle ──
+      document.getElementById("btn-show-guide").addEventListener("click", () => {
+        const g = document.getElementById("section-guide");
+        const m = document.getElementById("main-content");
+        const btn = document.getElementById("btn-show-guide");
+        if (g.style.display === "none") {
+          g.style.display = "";
+          m.style.display = "none";
+          btn.textContent = "← Back to Tool";
+        } else {
+          g.style.display = "none";
+          m.style.display = "";
+          btn.textContent = "📖 Investigator Guide";
+        }
+      });
+    </script>
+  </body>
+</html>
